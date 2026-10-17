@@ -1,0 +1,58 @@
+                     ┌──────────────┐
+SC715C ─────────────►│ DRIVER INDI  │
+                     │              │
+                     │ contrôle USB │
+                     │ exposition   │
+                     │ gain         │
+                     │ RAW          │
+                     │ streaming    │
+                     └───────┬──────┘
+                             │
+                        INDI server
+                             │
+                   port réseau 7624
+                             │
+                             ▼
+                       ASTRO CAM
+                             │
+             ┌───────────────┼──────────────┐
+             ▼               ▼              ▼
+           Focus           Solve          Guide
+             │               │              │
+             └───────────────┼──────────────┘
+                             ▼
+                         Preview
+                             ▼
+                           JPEG
+                             ▼
+                       Serveur Web
+
+
+PROCESS 1 — ACQUISITION
+        │
+        │  INDI
+        │  exposition / gain / binning
+        ▼
+ frame RAW 1920×1080 16 bits
+        │
+        ▼
+ mémoire partagée
+        │
+        ├───────────────────────────┐
+        │                           │
+        ▼                           ▼
+PROCESS 2                    PROCESS 3
+TRAITEMENT ASTRO             PREVIEW
+                             
+gris / masque                stretch histogramme
+fond de ciel                 conversion 8 bits
+étoiles                      overlays
+centroïdes                        │
+HFD/FWHM                          ▼
+plate solving                    JPEG
+guidage                           │
+                                 ▼
+                            SERVEUR WEB
+                                 │
+                                 ▼
+                           téléphone / PC

@@ -1,0 +1,354 @@
+ASTRO CAM — RAPPEL POUR REPRISE DEMAIN
+Date : 12/09/2026 soir
+
+============================================================
+1. VERSION ACTUELLE
+============================================================
+
+Version actuellement testée :
+astro_cam_v32_calibrated_altaz_push_to.py
+
+État général :
+- Le flux caméra fonctionne.
+- Le plate solving fonctionne.
+- Le guidage automatique relance bien les solves.
+- M11 a été trouvé avec succès.
+- Le Push-To est utilisable, mais les indications visuelles ne sont pas encore assez claires.
+- Pour les essais actuels, on reste en mode ALT-AZ.
+
+Important :
+- NE PAS tourner ni zoomer l'image logiciellement.
+- Le LiveView doit rester en FULL FRAME natif 1920x1080.
+- Le WCS peut continuer à mesurer l'orientation de la caméra, mais l'affichage doit rester tel que la caméra le donne.
+
+============================================================
+2. MONTURE ACTUELLE : ALT-AZ
+============================================================
+
+Pour le moment, l'utilisateur est sur une monture fixe de type Alt-Az.
+
+Mouvements physiques disponibles :
+- ALTITUDE : monter / descendre.
+- AZIMUT : tourner à gauche / tourner à droite.
+
+Pour l'instant, ne pas raisonner principalement en AD/DEC.
+Le mode équatorial sera utile plus tard sur l'EQ6.
+
+À terme, conserver un sélecteur :
+[ Monture Alt-Az ] [ Équatoriale ]
+
+Mode Alt-Az :
+- AZ / ALT
+- langage utilisateur simple : GAUCHE / DROITE / MONTE / DESCENDS
+
+Mode équatorial futur :
+- AD / DEC
+
+============================================================
+3. PROBLÈME IMPORTANT ACTUEL : INDICATIONS ALT-AZ
+============================================================
+
+La V32 affiche encore des indications qui ne sont pas assez naturelles.
+
+PROBLÈME CONFIRMÉ SUR LA V32 :
+- Le sens GAUCHE / DROITE de l'azimut est inversé.
+- Sur le dernier test, l'interface indiquait :
+  "GAUCHE / EST"
+- Mais pour réellement se rapprocher de M11, il fallait tourner à DROITE.
+
+Donc :
+>>> NE PAS considérer la calibration AZ de la V32 comme correcte.
+
+La direction ALT n'a pas été déclarée fausse sur le dernier test, mais l'ensemble reste difficile à lire à cause de la rotation physique de la caméra.
+
+============================================================
+4. ROTATION PHYSIQUE DE LA CAMÉRA
+============================================================
+
+La caméra est actuellement montée en diagonale.
+
+Exemples de rotation WCS observée :
+- environ -37° sur la dernière capture.
+- auparavant autour de -49° / -54° selon les essais.
+
+Conséquence :
+- les mouvements physiques haut/bas et gauche/droite apparaissent en diagonale à l'écran ;
+- les flèches bleues/vertes sont donc pénibles à interpréter ;
+- même si les calculs sont corrects, l'ergonomie reste mauvaise.
+
+PLAN POUR DEMAIN :
+1. Tourner physiquement la caméra / le tube.
+2. Essayer d'obtenir :
+   - MONTER = visuellement vers le haut de l'écran ;
+   - DESCENDRE = vers le bas ;
+   - GAUCHE = vers la gauche ;
+   - DROITE = vers la droite.
+3. Faire un montage permettant de viser dehors si nécessaire.
+4. Une fois la caméra physiquement alignée, refaire une calibration propre.
+
+IMPORTANT :
+>>> Ne pas continuer à multiplier les corrections logicielles d'axes AVANT cette remise à l'équerre physique.
+
+============================================================
+5. CALIBRATION À REFAIRE APRÈS ALIGNEMENT CAMÉRA
+============================================================
+
+Quand la caméra sera physiquement remise droite :
+
+Faire un test avec UNE étoile reconnaissable.
+
+Test ALT :
+- bouger physiquement vers le haut ;
+- noter précisément dans quel sens l'étoile se déplace à l'écran ;
+- bouger vers le bas ;
+- confirmer le sens opposé.
+
+Test AZ :
+- tourner physiquement à droite ;
+- noter le déplacement écran ;
+- tourner physiquement à gauche ;
+- confirmer le sens opposé.
+
+Ensuite seulement :
+- fixer les quatre directions logiciellement ;
+- vérifier les signes AZ/ALT ;
+- vérifier qu'un mouvement demandé fait DIMINUER la distance à la cible au solve suivant.
+
+Critère de validation :
+Distance cible :
+5.0° -> 3.5° -> 2.0° -> 0.8° -> cible dans le champ.
+
+============================================================
+6. INDICATIONS VISUELLES À REFAIRE
+============================================================
+
+C'est le gros chantier à faire demain.
+
+Objectif :
+En regardant l'écran, l'utilisateur doit comprendre IMMÉDIATEMENT quoi faire.
+
+À conserver :
+- flèche JAUNE = direction globale vers la cible ;
+- cible ROUGE + nom de l'objet (ex. M11) ;
+- rond BLEU = centre du champ ;
+- solve automatique ;
+- distance restante ;
+- full frame.
+
+À améliorer :
+- indications AZ / ALT beaucoup plus simples ;
+- texte court ;
+- éviter les phrases techniques trop longues ;
+- éviter les informations redondantes ;
+- éviter les blocs illisibles en bas à gauche.
+
+Exemple de HUD recherché :
+
+M11 — 4.2° restant
+TOURNE À DROITE 3.9°   |   MONTE 1.1°
+
+Ou une présentation graphique encore plus claire.
+
+Le texte doit être orienté ACTION :
+- TOURNE À DROITE
+- TOURNE À GAUCHE
+- MONTE
+- DESCENDS
+
+Pas besoin d'obliger l'utilisateur à interpréter :
+- RA/DEC ;
+- Est/Ouest céleste ;
+- rotation caméra ;
+- vecteurs mathématiques.
+
+Le calcul peut rester complexe en interne, mais l'interface doit être simple.
+
+============================================================
+7. FLÈCHE JAUNE
+============================================================
+
+NE PAS supprimer la flèche jaune.
+
+Elle est utile comme direction globale vers l'objet.
+
+Comportement souhaité :
+- hors champ : flèche jaune claire et visible ;
+- dans le champ mais pas encore centré : petite flèche jaune possible ;
+- très proche / centré : la cible rouge + rond bleu peuvent suffire.
+
+Elle doit être cohérente avec les commandes ALT/AZ affichées.
+
+============================================================
+8. BOUTONS ALT-AZ / ÉQUATORIALE
+============================================================
+
+Les boutons actuels :
+- Monture Alt-Az
+- Équatoriale
+
+sont jugés moches.
+
+À refaire demain :
+- style cohérent avec le reste de l'interface ;
+- compact ;
+- sombre ;
+- bouton actif clairement visible ;
+- pas de gros boutons blancs/gris.
+
+Ne pas modifier ce point ce soir.
+
+============================================================
+9. PROBLÈME CAMÉRA / RECONNEXION
+============================================================
+
+Pendant les nombreux essais :
+- arrêt du script ;
+- copie d'une nouvelle version ;
+- redémarrage ;
+- répétition plusieurs fois ;
+
+la SC715C a fini par décrocher.
+
+Le programme a essayé de se reconnecter automatiquement mais n'a pas réussi.
+
+Action qui a fonctionné immédiatement :
+- débrancher physiquement l'USB caméra ;
+- rebrancher ;
+- pendant que le programme essayait encore de récupérer la caméra ;
+- la caméra est repartie immédiatement.
+
+Conclusion provisoire :
+- probablement état USB / SDK / caméra bloqué après trop de cycles rapides ;
+- pas forcément un bug prioritaire du programme ;
+- la récupération logicielle V20+ ne suffit pas toujours quand l'USB/caméra est réellement coincé.
+
+À examiner plus tard :
+- délai d'arrêt caméra plus long ;
+- délai après DISCONNECT INDI ;
+- délai avant arrêt d'indiserver ;
+- délai au démarrage avant tentative de reconnexion ;
+- éventuellement plusieurs tentatives de reconnexion espacées ;
+- éventuellement détecter disparition/réapparition USB.
+
+Ne pas casser le fonctionnement actuel pour ça.
+Le problème apparaît surtout parce qu'on enchaîne énormément de redémarrages pendant le développement.
+
+============================================================
+10. CURSEURS GAIN / EXPOSITION
+============================================================
+
+Petit problème d'ergonomie à corriger :
+
+Sur les graduations des curseurs gain/exposition :
+50, 100, 150, 500, etc.
+
+le curseur de souris devient comme un curseur de sélection de TEXTE.
+
+Ce n'est pas agréable.
+
+À faire :
+- mettre un curseur "main" / pointer sur les éléments cliquables ;
+- éventuellement cursor:pointer sur les graduations ;
+- cursor:grab / grabbing sur le slider si approprié ;
+- empêcher la sélection de texte sur les labels de graduation :
+  user-select: none;
+
+À ne pas oublier.
+
+============================================================
+11. CE QUI FONCTIONNE ET QU'IL NE FAUT PAS CASSER
+============================================================
+
+- Acquisition SC715C par INDI.
+- Binning 2x2.
+- Full frame 1920x1080 pour l'affichage actuel.
+- RAW scientifique séparé du preview.
+- Stretch Technique / Ciel noir.
+- Plate solving automatique.
+- Solves répétés pendant le guidage cible.
+- Flèche persistante entre deux solves.
+- Catalogue Messier / NGC.
+- Sélection M11.
+- Affichage cible rouge avec le nom M11.
+- Calcul de distance à la cible.
+- M11 a réellement été trouvé avec le système.
+- Récupération caméra niveau 1/2 existante.
+- Déconnexion INDI propre à l'arrêt.
+- Mode équatorial conservé pour plus tard.
+- WCS disponible pour connaître orientation et échelle.
+
+============================================================
+12. ÉTAT MATÉRIEL / OPTIQUE
+============================================================
+
+Caméra :
+SVBONY SC715C
+
+Chercheur :
+9x50
+
+Focale à conserver dans le logiciel :
+184 mm
+
+Binning actuel :
+2x2
+
+Résolution affichée :
+1920 x 1080
+
+Échelle mesurée au plate solving :
+environ 3.40 arcsec/pixel
+
+Monture utilisée pour les essais actuels :
+Alt-Az / support fixe, mouvements manuels.
+
+Monture finale prévue plus tard :
+ancienne EQ6 avec le Sky-Watcher 200/1000.
+
+============================================================
+13. PRIORITÉ POUR LA PROCHAINE SESSION
+============================================================
+
+ORDRE RECOMMANDÉ :
+
+1. Ne pas modifier tout de suite le logiciel.
+2. Tourner physiquement la caméra pour remettre l'image dans un repère intuitif.
+3. Vérifier avec une étoile :
+   - vrai haut ;
+   - vrai bas ;
+   - vraie gauche ;
+   - vraie droite.
+4. Noter les quatre mouvements.
+5. Corriger uniquement les signes/directions Alt-Az dans le programme.
+6. Refaire complètement l'affichage des indications Push-To.
+7. Tester une cible Messier.
+8. Vérifier que la distance diminue à chaque mouvement.
+9. Refaire ensuite le style des boutons Alt-Az / Équatoriale.
+10. Corriger le curseur souris gain/exposition.
+11. Plus tard seulement : approfondir le problème de reconnexion caméra après cycles rapides.
+
+============================================================
+14. DERNIÈRE CAPTURE / OBSERVATION
+============================================================
+
+Dernière version affichée :
+Astro Cam — SC715C · V32
+
+Sur la capture :
+- M11 est dans le champ.
+- Écart affiché autour de 0.155°.
+- Cible rouge M11 correctement visible.
+- Flèche bleue : MONTE ~0.06°.
+- Flèche verte : GAUCHE / EST ~0.53°.
+- Flèche jaune globale visible.
+- Rotation WCS indiquée autour de -37°.
+- L'utilisateur confirme que la commande GAUCHE est inversée :
+  il fallait tourner à DROITE pour compenser.
+
+============================================================
+FIN DU RAPPEL
+============================================================
+
+Reprendre demain à partir de ce document et de la V32.
+Le but immédiat n'est pas d'ajouter de nouvelles fonctions :
+le but est de rendre le Push-To Alt-Az SIMPLE, VISUEL et FIABLE.

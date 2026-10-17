@@ -1,0 +1,526 @@
+ASTRO CAM — RÉSUMÉ DE REPRISE / RESTE À FAIRE
+Date : 20/09/2026
+Projet : Astro Cam — Arduino UNO Q + SVBONY SC715C + chercheur 9x50
+
+======================================================================
+1. ÉTAT ACTUEL VALIDÉ
+======================================================================
+
+Matériel / optique
+------------------
+- Caméra : SVBONY SC715C.
+- Chercheur : 9x50.
+- Focale utilisée dans le logiciel : 184 mm.
+- Montage principal : Skywatcher 200/1000 sur ancienne EQ6.
+- Utilisation actuelle du Push-To : monture manuelle, mode Alt-Az.
+- La caméra a été physiquement tournée pour remettre l'image à l'endroit :
+  haut réel = haut écran, bas réel = bas écran.
+
+Acquisition / INDI
+------------------
+- Driver : indi_svbonycam_ccd.
+- INDI démarre automatiquement avec Astro Cam.
+- Détection dynamique de la caméra :
+  - accepte les variantes de nom USB2 / USB3 ;
+  - ne dépend plus d'un nom INDI strict.
+- V34 a corrigé le bug de détection dynamique de la V33.
+- Résolution actuelle de travail :
+  - RAW : 1920x1080 uint16 ;
+  - binning 2x2 ;
+  - aperçu : 1920x1080.
+- Exposition et gain pilotables.
+- Arrêt propre de la caméra et du serveur INDI.
+- Récupération caméra déjà présente :
+  - réarmement BLOB ;
+  - reconnexion INDI ;
+  - sans relancer systématiquement indiserver.
+
+Plate solving
+-------------
+- solve-field fonctionne.
+- Résultats réels validés autour de :
+  - 3.399 à 3.401 arcsec/pixel.
+- Temps de solve typique :
+  - environ 7.7 à 8.2 secondes.
+- Focale logicielle conservée à 184 mm malgré la petite différence entre
+  l'échantillonnage théorique et mesuré.
+- Solve temporaire en RAM via /dev/shm.
+
+Push-To
+-------
+- Le principe général fonctionne en ciel réel.
+- Objets déjà trouvés avec succès :
+  - M11 ;
+  - M26.
+- La cible rouge et son nom sont conservés.
+- Le centre bleu est conservé.
+- La flèche jaune globale est conservée.
+- Le LiveView reste full frame natif :
+  - aucune rotation logicielle ;
+  - aucun zoom ;
+  - aucun crop.
+- V35 a remis les indications Alt-Az dans un repère intuitif après
+  réalignement physique de la caméra :
+  - MONTE = ↑
+  - DESCENDS = ↓
+  - DROITE = →
+  - GAUCHE = ←
+- Le sens azimutal a été corrigé par rapport aux essais V32.
+
+Catalogue
+---------
+- V36 est basée sur V35.
+- Intégration OpenNGC ajoutée :
+  - Messier ;
+  - NGC ;
+  - IC ;
+  - recherche par noms courants ;
+  - type d'objet ;
+  - magnitude quand disponible ;
+  - constellation.
+- Téléchargement OpenNGC au premier lancement.
+- Stockage local prévu dans :
+  /home/arduino/astro_unoq/catalogs/
+- Ancien catalog.py conservé comme secours.
+- Limite d'affichage :
+  - 120 résultats maximum par requête ;
+  - catalogue complet restant interrogeable.
+
+Focus plein jour
+----------------
+- Script séparé créé :
+  focus_plein_jour_sc715c_v2.py
+- Démarre INDI automatiquement.
+- Flask sur le port 5051.
+- Gain + exposition uniquement.
+- Dématriçage Bayer GRBG.
+- Aucun stretch astro.
+- Aucun gamma.
+- Aucun histogramme automatique.
+- Aucun plate solving.
+- Sert surtout à :
+  - régler mécaniquement la caméra ;
+  - vérifier l'orientation ;
+  - faire une mise au point grossière en journée.
+- En plein jour, même au minimum, la caméra est très lumineuse.
+- Solution mécanique envisagée :
+  diaphragmes imprimés en 3D, environ 8 / 10 / 12 / 15 / 20 mm.
+- Point de départ conseillé pour le plein jour :
+  trou autour de 10 mm.
+
+======================================================================
+2. PRIORITÉ 1 — VALIDER LA V35 / V36 SOUS LES ÉTOILES
+======================================================================
+
+Objectif :
+valider définitivement les nouveaux sens de déplacement après rotation
+physique de la caméra.
+
+À tester avec une cible connue :
+1. Lancer un solve.
+2. Choisir un objet.
+3. Vérifier :
+   - si l'écran dit DROITE, tourner réellement à droite ;
+   - la distance à la cible doit diminuer ;
+   - si l'écran dit GAUCHE, tourner à gauche ;
+   - si l'écran dit MONTE, monter ;
+   - si l'écran dit DESCENDS, descendre.
+4. Vérifier que la flèche jaune globale pointe dans la bonne direction.
+5. Vérifier que la distance diminue de façon cohérente à chaque mouvement.
+6. Refaire le test avec plusieurs objets éloignés les uns des autres.
+
+IMPORTANT :
+ne plus corriger les directions par hypothèse.
+Toute correction future doit être basée sur un test physique réel.
+
+======================================================================
+3. PRIORITÉ 2 — ÉVITER LES PLATE SOLVING SUR IMAGE EN MOUVEMENT
+======================================================================
+
+Problème observé :
+- pendant un déplacement manuel, une image peut être acquise avec les
+  étoiles étirées ;
+- l'auto-solve peut démarrer sur cette image ;
+- le solve échoue ou donne un mauvais résultat ;
+- on peut perdre un ou deux cycles de solve avant stabilisation.
+
+Amélioration à développer :
+détection de stabilité avant auto-solve.
+
+Comportement souhaité :
+1. Le télescope bouge.
+2. Astro Cam détecte que l'image n'est pas stable.
+3. Aucun plate solving n'est lancé.
+4. Message possible :
+   "Mouvement détecté — attente stabilité..."
+5. Une fois le télescope arrêté :
+   - attendre 2 images consécutives stables ;
+   - utiliser seulement la plus récente ;
+   - lancer le solve.
+6. Message :
+   "Image stable — plate solving..."
+
+Méthodes possibles :
+- comparaison entre deux images successives ;
+- déplacement global des étoiles ;
+- mesure de netteté / allongement ;
+- détection rapide avant solve, sans traitement lourd.
+
+But :
+perdre 2 ou 3 secondes à attendre la stabilité plutôt que perdre
+8 à 16 secondes avec un ou deux solves inutiles.
+
+======================================================================
+4. PRIORITÉ 3 — VALIDER OPENNGC V36 SUR L'UNO Q
+======================================================================
+
+À vérifier au premier lancement :
+- téléchargement de :
+  OpenNGC_NGC.csv
+  OpenNGC_addendum.csv
+- création du dossier :
+  /home/arduino/astro_unoq/catalogs/
+- nombre d'objets chargés.
+- fonctionnement hors ligne après téléchargement.
+
+Recherches à tester :
+- M11
+- M26
+- M31
+- M42
+- NGC 7000
+- NGC 869
+- IC 5070
+- Andromeda
+
+À contrôler dans l'interface :
+- bouton Messier ;
+- bouton NGC ;
+- bouton IC ;
+- bouton Tous ;
+- coordonnées RA/DEC ;
+- type d'objet ;
+- magnitude ;
+- constellation ;
+- nom courant.
+
+À améliorer éventuellement ensuite :
+- filtre "objets brillants" ;
+- filtre par type :
+  galaxie / amas / nébuleuse / planétaire...
+- filtre magnitude maximale ;
+- objets visibles ce soir / actuellement au-dessus de l'horizon.
+
+======================================================================
+5. PRIORITÉ 4 — SIMPLIFIER ENCORE LE HUD PUSH-TO
+======================================================================
+
+Objectif :
+rendre l'écran immédiatement compréhensible pendant le déplacement.
+
+Format idéal :
+M11 — 4.2° restant
+→ DROITE 3.9°   ↑ MONTE 1.1°
+
+À conserver :
+- cible rouge ;
+- nom de l'objet ;
+- centre bleu ;
+- flèche jaune globale ;
+- indications individuelles Alt-Az.
+
+À éviter :
+- longues phrases techniques ;
+- termes AD/DEC pendant l'utilisation Alt-Az ;
+- indications de couleurs dans le texte ;
+- un simple nombre du type "5.06°" sans libellé.
+
+Le mode équatorial reste présent mais ne doit pas gêner le mode Alt-Az.
+
+======================================================================
+6. PRIORITÉ 5 — PAGE FOCUS ASTRONOMIQUE
+======================================================================
+
+La vraie page Focus reste à terminer.
+
+Fonctions à développer :
+- détection automatique d'une étoile ;
+- possibilité de sélectionner manuellement une étoile ;
+- ROI autour de l'étoile ;
+- zoom d'analyse local uniquement ;
+- mesure HFD ;
+- mesure FWHM ;
+- valeur actuelle ;
+- meilleure valeur obtenue ;
+- courbe / tendance de mise au point ;
+- indication :
+  mieux / moins bien ;
+- possibilité de verrouiller l'étoile choisie.
+
+Important :
+- ne pas modifier le RAW scientifique ;
+- le zoom est uniquement une vue d'analyse du Focus ;
+- le LiveView principal doit rester full frame natif.
+
+======================================================================
+7. PRIORITÉ 6 — MISE EN STATION POLAIRE
+======================================================================
+
+La logique de mise en station existe mais n'est pas encore suffisamment
+validée sur ciel réel.
+
+Principe actuel :
+- solve A ;
+- rotation de l'axe AD d'environ 30 à 45° ;
+- solve B ;
+- éventuellement solve C ;
+- calcul de l'axe de rotation ;
+- comparaison avec le pôle céleste ;
+- cible de correction affichée dans le LiveView.
+
+À valider :
+- sens réel de la correction ;
+- amplitude de la correction ;
+- répétabilité ;
+- comportement côté Est/Ouest du méridien ;
+- qualité après plusieurs répétitions.
+
+Ne pas considérer la direction de correction comme définitivement validée
+avant plusieurs essais réels.
+
+======================================================================
+8. PRIORITÉ 7 — UI / ERGONOMIE
+======================================================================
+
+À revoir :
+- sélecteur Alt-Az / Équatoriale :
+  actuellement fonctionnel mais visuellement pas propre ;
+- faire un sélecteur sombre, compact, avec état actif clair ;
+- curseurs gain / exposition :
+  empêcher le curseur texte sur les graduations ;
+  ajouter user-select:none ;
+  utiliser cursor:pointer ou grab selon le contrôle ;
+- garder le LiveView dominant ;
+- éviter les gros blocs de réglages qui prennent l'écran.
+
+======================================================================
+9. PRIORITÉ 8 — STABILITÉ CAMÉRA / USB / INDI
+======================================================================
+
+Déjà amélioré :
+- détection dynamique USB2/USB3 ;
+- reconnexion INDI ;
+- réarmement BLOB.
+
+À surveiller :
+- blocage de caméra après beaucoup de stop/restart rapides ;
+- caméra nécessitant parfois un débranchement/rebranchement USB ;
+- comportement longue durée ;
+- retour après perte USB réelle ;
+- retour après reconnexion sur un autre port.
+
+À faire :
+- test longue durée de plusieurs heures ;
+- test arrêt / redémarrage répété raisonnable ;
+- vérifier mémoire CPU/RAM ;
+- journaliser les erreurs importantes.
+
+Option finale possible si vraiment nécessaire :
+- contrôle d'alimentation USB via hub compatible / uhubctl ;
+- power-cycle matériel automatisé.
+
+Pas prioritaire tant que le problème n'est pas reproductible proprement.
+
+======================================================================
+10. PRIORITÉ 9 — GUIDAGE ST-4
+======================================================================
+
+À développer plus tard après validation du Push-To.
+
+Brochage logique actuel prévu :
+- D3 / PB0  : ST4 RA+
+- D4 / PA12 : ST4 RA-
+- D5 / PA11 : ST4 DEC+
+- D6 / PB1  : ST4 DEC-
+
+Isolation :
+- PC817C.
+- résistance LED entrée : 220 ohms.
+- sorties isolées côté monture.
+
+À développer :
+- commandes manuelles ST4 ;
+- impulsions de durée contrôlée ;
+- calibration AD / DEC ;
+- autoguidage ;
+- gestion agressivité / durée ;
+- sécurité pour éviter deux directions opposées en même temps.
+
+IMPORTANT :
+le brochage physique RJ12 de l'ancienne EQ6 doit être vérifié
+avec documentation fiable ou multimètre avant branchement.
+Ne pas se fier à un ancien dessin généré.
+
+======================================================================
+11. PRIORITÉ 10 — DÉCLENCHEMENT CANON EOS 600D
+======================================================================
+
+Brochage logique prévu :
+- D9 / PB8 : Canon Focus
+- D10 / PB9 : Canon Shutter / Bulb
+
+À faire :
+- circuit optocouplé PC817 ;
+- test focus ;
+- test déclenchement photo ;
+- mode Bulb ;
+- durée d'exposition ;
+- intervalomètre ;
+- séquences ;
+- intégration future avec Push-To / suivi.
+
+======================================================================
+12. PRIORITÉ 11 — CARTE / MEZZANINE / ÉLECTRONIQUE
+======================================================================
+
+Brochage actuellement prévu :
+- D3 / PB0  : ST4 RA+
+- D4 / PA12 : ST4 RA-
+- D5 / PA11 : ST4 DEC+
+- D6 / PB1  : ST4 DEC-
+- D7 / PB2  : switch réseau / hotspot
+- D8 / PB4  : LED verte test carte
+- D9 / PB8  : Canon Focus
+- D10 / PB9 : Canon Shutter
+- VIN        : 12 V
+- GND        : masse logique / alimentation
+
+PC817C :
+- pin 1 = anode
+- pin 2 = cathode
+- pin 3 = émetteur
+- pin 4 = collecteur
+
+Entrée :
+GPIO -> 220 ohms -> pin 1
+pin 2 -> GND Arduino
+
+Côté isolé :
+pin 4 -> signal externe
+pin 3 -> commun externe
+
+À finaliser :
+- schéma définitif ;
+- vérification brochage réel UNO Q ;
+- protections alimentation ;
+- fusible ;
+- protection inversion de polarité ;
+- alimentation 5 V caméra / hub si nécessaire ;
+- PCB ou plaque propre ;
+- boîtier final.
+
+======================================================================
+13. PRIORITÉ 12 — DÉMARRAGE AUTONOME / PRODUIT FINAL
+======================================================================
+
+Une fois le logiciel stabilisé :
+- lancement automatique au boot ;
+- service systemd ;
+- redémarrage propre en cas de crash ;
+- logs persistants mais limités ;
+- réseau normal + éventuellement hotspot de secours ;
+- bouton physique D7 pour réseau / hotspot ;
+- page web accessible directement après démarrage ;
+- aucune commande SSH nécessaire en utilisation normale.
+
+======================================================================
+14. TESTS FINAUX À FAIRE
+======================================================================
+
+Test caméra
+-----------
+- 4 à 8 heures d'acquisition continue.
+- variation exposition / gain.
+- déconnexion / reconnexion USB.
+- changement de port USB.
+- redémarrage complet UNO Q.
+
+Test Push-To
+------------
+- M11.
+- M26.
+- plusieurs Messier.
+- plusieurs NGC.
+- plusieurs IC.
+- cibles à différents azimuts / altitudes.
+- vérifier que la distance décroît correctement.
+- vérifier la stabilité avant solve quand elle sera ajoutée.
+
+Test Focus
+----------
+- étoile brillante.
+- étoile faible.
+- plusieurs valeurs de mise au point.
+- vérifier HFD/FWHM.
+
+Test mise en station
+--------------------
+- comparer avant / après.
+- répéter plusieurs fois.
+- vérifier le sens de correction.
+
+Test ST-4
+---------
+- impulsions manuelles très courtes.
+- vérifier RA+/RA-/DEC+/DEC-.
+- calibration guidage.
+- suivi plusieurs minutes.
+
+Test Canon
+----------
+- déclenchement simple.
+- Bulb.
+- série de poses.
+
+======================================================================
+15. ORDRE CONSEILLÉ POUR LA SUITE
+======================================================================
+
+1. Installer et tester V36.
+2. Valider les 4 directions Alt-Az sous les étoiles.
+3. Valider OpenNGC.
+4. Ajouter la détection de stabilité avant plate solving.
+5. Refaire un test Push-To complet.
+6. Nettoyer le HUD Push-To.
+7. Finaliser la page Focus HFD/FWHM.
+8. Valider la mise en station polaire.
+9. Test longue durée caméra / INDI.
+10. Développer ST-4.
+11. Développer déclenchement Canon.
+12. Finaliser mezzanine électronique.
+13. Ajouter démarrage automatique.
+14. Faire les tests finaux longue durée et terrain.
+
+======================================================================
+VERSION DE RÉFÉRENCE AU 20/09/2026
+======================================================================
+
+Version principale la plus récente :
+- V36 : astro_cam_v36_openngc_catalog.py
+
+Basée sur :
+- V35 : caméra physiquement droite + Push-To Alt-Az simplifié ;
+- V34 : détection dynamique SC715C USB2/USB3 corrigée.
+
+Script séparé plein jour :
+- focus_plein_jour_sc715c_v2.py
+
+Chemin projet UNO Q :
+- /home/arduino/astro_unoq
+
+Commande normale de lancement :
+- python3 /home/arduino/astro_unoq/astro_cam.py
+
+======================================================================
+FIN DU RÉSUMÉ
+======================================================================

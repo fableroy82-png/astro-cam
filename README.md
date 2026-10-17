@@ -10,6 +10,8 @@ Aucun dépôt Git Astro cam n'a été retrouvé dans le répertoire actuel ou l'
 
 ## Fichiers
 
+- [Documentation, résumés, schémas et captures](docs/README.md).
+- [Modèles CAO et projets d'impression 3D](hardware/README.md).
 - `astro_cam.py` : application principale et interface web embarquée dans le fichier Python.
 - `focus_plein_jour_sc715c_v2.py` : outil séparé de mise au point de jour.
 - `start_indi.sh` : lancement manuel facultatif du serveur INDI.

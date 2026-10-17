@@ -13,4 +13,10 @@ Source : répertoire actif `astro_unoq` de l'UNO Q, copie du 17 octobre 2026.
 
 Le répertoire installé sur l'UNO Q et les références synchronisées du projet ChatGPT sont restés inchangés.
 
+## Complément documentaire et matériel
+
+Le 17 octobre 2026, ajout des éléments fournis dans le dossier de projet de l'auteur : 4 textes historiques, 13 images (schémas et essais), 10 pièces CAO `.par`, 2 assemblages `.asm`, 2 configurations `.cfg` et 10 projets d'impression `.3mf`. Les 41 fichiers sont copiés sans retouche ; les README d'accompagnement distinguent les documents de conception du logiciel effectivement installé.
+
+Exclus de ce complément : anciens scripts v32/v36, archive `system_3_modes_5fps_v5.tar.gz` et journaux `.log`. Les originaux restent inchangés. Contrôle visuel des images, inspection des métadonnées d'images et des conteneurs 3MF, recherche de marqueurs de secrets dans les textes et modèles : aucun secret détecté par ces contrôles. Les fichiers Solid Edge n'ont pas été ouverts dans leur application native ; aucune nouvelle impression ni validation électrique réalisée.
+
 Vérifications complémentaires : syntaxe Bash valide ; chargement du catalogue local réussi sur l'UNO Q (13 372 objets), sans lancer les processus d'acquisition. Recherche de motifs de secrets dans les fichiers retenus : aucune correspondance détectée.

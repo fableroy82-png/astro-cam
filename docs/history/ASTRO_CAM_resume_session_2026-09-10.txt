@@ -1,0 +1,528 @@
+ASTRO CAM — RÉSUMÉ DE LA SESSION
+Date : 10 septembre 2026
+
+============================================================
+1. OBJECTIF GÉNÉRAL DU PROJET
+============================================================
+
+Le projet Astro Cam doit utiliser la caméra SVBONY SC715C montée sur un chercheur 9x50 d’environ 184 mm de focale, pilotée par l’Arduino UNO Q.
+
+Fonctions prévues à terme :
+- affichage vidéo / preview Web ;
+- réglage exposition et gain ;
+- focus assisté ;
+- détection d’étoiles ;
+- HFD / FWHM ;
+- plate solving ;
+- mise en station polaire ;
+- push-to ;
+- guidage ST-4 ;
+- interface Web utilisable depuis PC ou téléphone.
+
+Architecture retenue :
+- driver caméra séparé via INDI ;
+- application Astro Cam séparée ;
+- acquisition, traitement, JPEG et serveur Web dans des processus distincts ;
+- communication entre processus par mémoire partagée ;
+- principe “latest frame wins” ;
+- aucune queue d’images qui grossit ;
+- aucune écriture FITS sur disque pendant le live.
+
+
+============================================================
+2. PROBLÈME INITIAL ET DIAGNOSTIC
+============================================================
+
+L’ancien système utilisait un démon caméra écrit en C, basé directement sur les bibliothèques caméra.
+
+Symptômes observés auparavant :
+- plantages aléatoires ;
+- instabilité après quelques minutes ou parfois beaucoup plus tard ;
+- problèmes de buffers ;
+- comportement difficile à diagnostiquer ;
+- nombreuses tentatives autour du streaming et de l’acquisition.
+
+Conclusion actuelle :
+- le démon C précédent était très probablement incomplet ou mal configuré pour cette caméra ;
+- il manquait vraisemblablement certains paramètres / comportements de gestion attendus par la caméra ;
+- le passage par INDI s’est révélé nettement plus stable.
+
+
+============================================================
+3. INSTALLATION ET VALIDATION INDI
+============================================================
+
+INDI Core et les drivers 3rd-party ont été compilés et installés sur l’Arduino UNO Q.
+
+Driver utilisé :
+    indi_svbonycam_ccd
+
+Nom INDI exact de la caméra :
+    SVBONY2 SVBONY_SC715C
+
+Port INDI :
+    7624
+
+Commande de lancement actuelle :
+    /home/arduino/astro_unoq/start_indi.sh
+
+Le script lance :
+    indiserver -v -r 5 -p 7624 indi_svbonycam_ccd
+
+La caméra est reconnue correctement.
+
+Informations importantes validées :
+- résolution native : 3840 x 2160 ;
+- résolution utilisée avec binning 2x2 : 1920 x 1080 ;
+- pixel : environ 1,45 µm ;
+- focale utilisée pour les calculs : 184 mm ;
+- échantillonnage en binning 2x2 : environ 3,25 arcsec/pixel ;
+- ADC : 12 bits ;
+- données transportées dans un FITS 16 bits ;
+- matrice Bayer annoncée : GRBG.
+
+
+============================================================
+4. VALIDATION DES FITS ET DU RAW
+============================================================
+
+Un FITS de test a été généré et vérifié.
+
+Résultat :
+- 1920 x 1080 ;
+- BITPIX = 16 ;
+- exposition correcte ;
+- gain correct ;
+- matrice Bayer GRBG ;
+- sortie réellement produite en binning 2x2.
+
+Les valeurs observées étaient des multiples de 16, ce qui confirme que les données utiles 12 bits sont alignées dans le conteneur 16 bits.
+
+Conversion retenue :
+    raw12 = raw16 >> 4
+
+
+============================================================
+5. TESTS D’ACQUISITION SUCCESSIFS
+============================================================
+
+Plusieurs étapes ont été validées.
+
+A. Test INDI avec FITS temporaires
+- acquisition stable ;
+- pas de fuite mémoire visible ;
+- cadence autour de 0,78 image/s avec exposition 0,8 s ;
+- limitation : les outils indi_setprop / indi_getprop ouvraient plusieurs connexions courtes.
+
+B. Test BLOB INDI persistant
+- une seule connexion TCP persistante à indiserver ;
+- images FITS reçues directement en RAM ;
+- plus de création de fichiers FITS pour le live ;
+- mémoire stable.
+
+C. Pipeline acquisition + traitement avec shared memory
+- process acquisition ;
+- process traitement ;
+- buffer RAW partagé 1920 x 1080 uint16 ;
+- sequence counter ;
+- latest-frame-wins ;
+- aucun skip observé ;
+- traitement bien plus rapide que l’acquisition.
+
+D. Pipeline RAW12 -> preview
+- conversion RAW16 -> RAW12 ;
+- génération d’une preview 8 bits ;
+- histogramme / percentiles ;
+- stretch ASINH ;
+- buffer preview partagé ;
+- aucun skip observé ;
+- mémoire stable.
+
+E. Pipeline complet Web
+- acquisition ;
+- traitement ;
+- JPEG ;
+- serveur Flask ;
+- flux MJPEG visible dans le navigateur ;
+- fonctionnement validé.
+
+
+============================================================
+6. CONVERSION BAYER -> NIVEAUX DE GRIS
+============================================================
+
+Au début, la preview présentait un damier très visible.
+
+Diagnostic :
+- le RAW Bayer GRBG était étiré directement ;
+- les composantes R/G/B étaient très différentes.
+
+Exemple observé :
+    CFA(GR/R/B/GB) ≈ 417 / 223 / 277 / 417
+
+Correction :
+- conversion Bayer GRBG vers image monochrome avant l’histogramme / stretch.
+
+Résultat :
+- le damier Bayer a pratiquement disparu ;
+- l’image restante est surtout du bruit amplifié, ce qui est normal puisque la caméra filme actuellement des volets fermés et non le ciel.
+
+
+============================================================
+7. INTERFACE WEB ACTUELLE
+============================================================
+
+Application actuelle :
+    /home/arduino/astro_unoq/astro_cam.py
+
+Serveur Web :
+    http://192.168.1.53:5050/
+
+Fonctions présentes :
+- image live MJPEG ;
+- exposition réglable ;
+- gain réglable ;
+- binning ADD / AVG ;
+- voyants d’état ;
+- compteurs RAW / traitement / JPEG / skips ;
+- temps acquisition / traitement / JPEG ;
+- bouton “Masquer réglages” / “Afficher réglages” ;
+- interface compacte ;
+- interface plus arrondie et plus moderne ;
+- état des réglages mémorisé côté navigateur ;
+- cache navigateur désactivé pendant le développement.
+
+Réglage exposition :
+- minimum : 10 ms ;
+- maximum actuel : 10 s ;
+- échelle logarithmique ;
+- graduations visibles ;
+- saisie numérique exacte possible.
+
+Graduations principales :
+    10 ms
+    25 ms
+    50 ms
+    100 ms
+    250 ms
+    500 ms
+    1 s
+    2 s
+    5 s
+    10 s
+
+Réglage gain :
+- minimum : 100 ;
+- maximum actuel : 500 ;
+- échelle linéaire ;
+- graduations visibles ;
+- saisie numérique exacte possible.
+
+La barre “Vitesse caméra / USB” a été supprimée de l’interface.
+
+
+============================================================
+8. PROBLÈME DES CONNEXIONS INDI COURTES
+============================================================
+
+Un nouveau problème a été repéré pendant le développement :
+indiserver affichait régulièrement :
+- New arrival ;
+- read EOF ;
+- shutdown complete.
+
+Cause :
+- le endpoint Web /api/status ouvrait une petite connexion TCP vers INDI toutes les secondes pour tester si le port répondait.
+
+Important :
+- ce n’était pas l’acquisition des frames ;
+- l’acquisition principale était déjà persistante.
+
+Correction :
+- suppression du socket de test périodique ;
+- création d’un état partagé “INDI connecté” ;
+- le process acquisition met cet état à jour ;
+- /api/status lit seulement cette valeur ;
+- plus de connexion INDI ouverte / fermée toutes les secondes.
+
+Architecture actuelle :
+- une vraie connexion INDI persistante pour l’acquisition ;
+- pas de reconnexion à chaque frame ;
+- pas de connexion périodique uniquement pour les voyants Web.
+
+
+============================================================
+9. PERFORMANCES OBSERVÉES
+============================================================
+
+Avec exposition 800 ms :
+- cycle acquisition autour de 1,26 à 1,30 s ;
+- traitement autour de 0,34 à 0,38 s ;
+- JPEG autour de 45 à 50 ms après la première frame ;
+- skip = 0.
+
+Exemple avec exposition 25 ms :
+- cycle autour de 0,63 s.
+
+Exemple avec exposition 2 s :
+- cycle autour de 2,47 s.
+
+Le temps de cycle dépend donc bien de l’exposition demandée.
+
+Les changements d’exposition et de gain depuis la page Web sont bien transmis jusqu’à la caméra.
+
+Exemples de gains testés :
+- 150 ;
+- 180 ;
+- 200 ;
+- 250.
+
+Aucun problème majeur observé pendant ces changements.
+
+
+============================================================
+10. ORGANISATION ACTUELLE DU PROJET
+============================================================
+
+Dossier actif :
+    /home/arduino/astro_unoq
+
+Contenu principal :
+    astro_cam.py
+    start_indi.sh
+
+Ancien projet :
+- sauvegardé dans /home/arduino/astro_archive ;
+- anciennes sources, backups et anciens tests déplacés ou supprimés ;
+- ancien démon C retiré du projet actif ;
+- vieux scripts de test supprimés de la racine ;
+- ancien système V4L2 / OpenCV archivé.
+
+Le projet actif est maintenant très léger et propre.
+
+Taille observée :
+    /home/arduino/astro_unoq ≈ 80 Ko
+
+Archive :
+    /home/arduino/astro_archive ≈ 1,5 Go
+
+Les drivers INDI restent installés au niveau système.
+Ils ne sont pas copiés dans le dossier du projet.
+
+
+============================================================
+11. MÉTHODE DE TRAVAIL VALIDÉE
+============================================================
+
+Deux fenêtres SSH sont conservées pendant le développement.
+
+Fenêtre 1 :
+    cd /home/arduino/astro_unoq
+    ./start_indi.sh
+
+Cette fenêtre permet de surveiller :
+- indiserver ;
+- le driver SC715C ;
+- les éventuels problèmes caméra.
+
+Fenêtre 2 :
+    cd /home/arduino/astro_unoq
+    python3 astro_cam.py
+
+Cette fenêtre permet de surveiller :
+- acquisition ;
+- traitement ;
+- JPEG ;
+- serveur Web ;
+- erreurs applicatives.
+
+Cette séparation est considérée comme une bonne architecture et doit être conservée.
+
+
+============================================================
+12. TEST EN COURS CE SOIR
+============================================================
+
+Le 10 septembre 2026 au soir :
+- le serveur INDI est lancé ;
+- Astro Cam est lancé ;
+- le flux Web montre que les images continuent d’être acquises ;
+- le système est laissé volontairement tranquille pendant environ une heure.
+
+But :
+- vérifier la stabilité longue durée ;
+- confirmer qu’il n’y a ni crash caméra, ni blocage du serveur, ni problème de mémoire, ni perte de flux.
+
+Si le test d’une heure tient :
+- la base caméra / INDI / acquisition / Web pourra être considérée comme validée.
+
+
+============================================================
+13. CE QUI RESTE À FAIRE
+============================================================
+
+À NE PAS FAIRE AVANT LE TEST CIEL :
+- ne pas tirer de conclusion sur le bruit actuel ;
+- ne pas finaliser le traitement astro sur une image de volets fermés.
+
+Prochaines étapes envisagées après validation de stabilité :
+
+A. Finaliser la couche caméra
+- éventuellement mesurer précisément ADD vs AVG ;
+- vérifier le comportement sur vraies étoiles ;
+- confirmer la meilleure configuration de binning.
+
+B. Focus
+- créer un vrai mode Focus ;
+- conserver preview live ;
+- détection d’étoiles ;
+- calcul HFD ;
+- calcul FWHM ;
+- sélection automatique ou manuelle d’une étoile ;
+- indicateur visuel de meilleure mise au point ;
+- éventuellement zoom ROI pour le focus ;
+- bouton plein écran ou interface très compacte.
+
+C. Traitement astro
+À faire uniquement sur un vrai ciel étoilé :
+- estimation robuste du fond de ciel ;
+- bruit par sigma / MAD ;
+- seuils adaptés ;
+- stretch astro plus propre ;
+- ne pas amplifier le bruit comme actuellement ;
+- masque pixels chauds / pixels invalides si nécessaire ;
+- calibration dark éventuelle plus tard.
+
+D. Détection d’étoiles
+- star mask ;
+- centroides ;
+- nombre d’étoiles ;
+- SNR ;
+- filtrage des faux positifs ;
+- sélection des meilleures étoiles.
+
+E. Plate solving
+- intégrer astrometry.net / solve-field ;
+- travailler depuis la frame scientifique, pas depuis le JPEG ;
+- récupérer WCS ;
+- déterminer RA / DEC ;
+- orientation du champ ;
+- échelle du champ.
+
+F. Mise en station polaire
+- utiliser le plate solving ;
+- calculer l’erreur polaire ;
+- afficher flèches / direction à suivre sur la preview ;
+- fonctionnement interactif en direct.
+
+G. Push-to
+- catalogue d’objets ;
+- sélection Messier / NGC ;
+- plate solving courant ;
+- calcul écart vers la cible ;
+- flèches visuelles ;
+- cercle / croix de centrage.
+
+H. Guidage
+- reprendre le firmware ST-4 archivé ;
+- utiliser les broches prévues :
+    DEC+ : pin 6
+    DEC- : pin 9
+    RA+  : pin 10
+    RA-  : pin 11
+- détection étoile guide ;
+- centroides ;
+- erreurs RA / DEC ;
+- impulsions ST-4 ;
+- calibration ;
+- boucle de guidage.
+
+I. Services système
+Plus tard, une fois le développement stabilisé :
+- créer un service systemd pour INDI ;
+- créer un service systemd pour Astro Cam ;
+- garder les logs séparés ;
+- garder une commande simple de redémarrage individuel.
+
+Exemple futur :
+    astrocam-indi.service
+    astrocam.service
+
+J. Interface Web finale
+- conserver le style arrondi actuel ;
+- garder le bouton Masquer réglages ;
+- ajouter les modes :
+    Focus
+    Polar
+    Push-to
+    Guidage
+- panneau d’état caméra / traitement ;
+- éventuellement plein écran ;
+- interface adaptée téléphone / PC.
+
+
+============================================================
+14. ÉTAT ACTUEL DU PROJET
+============================================================
+
+À la fin de cette session :
+
+[OK] SC715C reconnue
+[OK] INDI installé
+[OK] driver SC715C fonctionnel
+[OK] connexion INDI persistante
+[OK] RAW récupéré en RAM
+[OK] 1920 x 1080 en binning 2x2
+[OK] RAW12 identifié
+[OK] conversion Bayer GRBG vers mono
+[OK] acquisition multiprocess
+[OK] shared memory RAW
+[OK] shared memory preview
+[OK] traitement séparé
+[OK] JPEG séparé
+[OK] serveur Web
+[OK] MJPEG visible dans navigateur
+[OK] exposition réglable depuis Web
+[OK] gain réglable depuis Web
+[OK] binning ADD / AVG
+[OK] interface compacte
+[OK] bouton masquer réglages
+[OK] monitoring des processus
+[OK] suppression des connexions INDI courtes de monitoring
+[OK] nettoyage du dossier projet
+[OK] ancien démon C retiré du projet actif
+
+[EN COURS] test longue durée d’environ une heure
+
+[À FAIRE] validation sous vraies étoiles
+[À FAIRE] focus HFD / FWHM
+[À FAIRE] détection d’étoiles
+[À FAIRE] plate solving
+[À FAIRE] mise en station polaire
+[À FAIRE] push-to
+[À FAIRE] guidage ST-4
+[À FAIRE] services systemd quand l’application sera suffisamment mûre
+
+
+============================================================
+15. COMMANDES DE DÉMARRAGE À RETENIR
+============================================================
+
+Fenêtre SSH 1 — caméra / INDI :
+
+    cd /home/arduino/astro_unoq
+    ./start_indi.sh
+
+Fenêtre SSH 2 — application :
+
+    cd /home/arduino/astro_unoq
+    python3 astro_cam.py
+
+Page Web :
+
+    http://192.168.1.53:5050/
+
+
+============================================================
+FIN DU RÉSUMÉ
+============================================================

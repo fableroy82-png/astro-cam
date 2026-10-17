@@ -5,3 +5,9 @@
 *.md text eol=lf
 *.txt text eol=lf
 *.csv text eol=lf
+*.par binary
+*.asm binary
+*.cfg binary
+*.3mf binary
+*.png binary
+*.jpg binary

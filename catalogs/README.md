@@ -7,4 +7,3 @@ Crédit : Mattia Verga et les contributeurs du projet [OpenNGC](https://github.c
 Ces données sont distribuées sous [Creative Commons Attribution-ShareAlike 4.0 International](https://creativecommons.org/licenses/by-sa/4.0/). La licence s'applique à ces catalogues ; elle n'attribue pas de licence au code Astro cam.
 
 Les colonnes de provenance sont conservées. Le README et le guide du projet amont détaillent les sources astronomiques et les champs du catalogue.
-

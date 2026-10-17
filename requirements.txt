@@ -1,0 +1,5 @@
+# Dépendances applicatives. INDI, le pilote caméra et solve-field sont externes.
+numpy
+Flask
+astropy
+opencv-python-headless

@@ -1,0 +1,7 @@
+# Versions observées sur l'UNO Q le 17 octobre 2026.
+# Document de référence : OpenCV est fourni par Debian (python3-opencv),
+# pas par la distribution pip opencv-python-headless.
+numpy==2.2.4
+Flask==3.1.1
+astropy==7.0.1
+# cv2.__version__ = 4.10.0
